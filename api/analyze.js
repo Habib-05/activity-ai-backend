@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  // Header CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -6,11 +7,12 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Gunakan method POST" });
 
-  const { activities } = req.body;
-  const trimmedActivities = (activities || "").trim();
+  // Ambil body
+  const { search_history } = req.body;
+  const trimmedHistory = (search_history || "").trim();
 
-  if (!trimmedActivities) {
-    return res.status(400).json({ error: "Data aktivitas kosong" });
+  if (!trimmedHistory) {
+    return res.status(400).json({ error: "Riwayat film kosong" });
   }
 
   if (!process.env.GEMINI_API_KEY) {
@@ -18,16 +20,19 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Prompt Gemini untuk rekomendasi film
     const prompt = `
-Berikut adalah daftar aktivitas harian mahasiswa:
+Berikut adalah riwayat film dan genre yang sering ditonton oleh pengguna:
+${trimmedHistory}
 
-${trimmedActivities}
+Tugas:
+1. Analisis selera film pengguna
+2. Berikan 5 rekomendasi film terbaru atau populer yang sesuai
+3. Sertakan alasan singkat untuk setiap rekomendasi
+4. Berikan 1-2 genre tambahan yang mungkin disukai
 
-Tolong simpulkan pola aktivitas tersebut.
-Beri penilaian apakah mahasiswa cenderung rajin, seimbang, kurang produktif, atau perlu evaluasi.
-Berikan alasan singkat dan 2 saran perbaikan.
-Gunakan bahasa Indonesia yang sederhana.
-    `.trim();
+Gunakan bahasa Indonesia yang sederhana, rapi, dan mudah dipahami.
+`.trim();
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -47,7 +52,7 @@ Gunakan bahasa Indonesia yang sederhana.
       });
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Gemini tidak memberikan hasil analisis.";
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Gemini tidak memberikan rekomendasi film.";
 
     return res.status(200).json({ result: text });
 

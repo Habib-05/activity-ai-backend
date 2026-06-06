@@ -7,11 +7,11 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Gunakan method POST" });
 
-  const { activities } = req.body;
-  const trimmedActivities = (activities || "").trim();
+  const { recommendation } = req.body;
+  const trimmedRecommendation = (recommendation || "").trim();
 
-  if (!trimmedActivities) {
-    return res.status(400).json({ error: "Data aktivitas kosong" });
+  if (!trimmedRecommendation) {
+    return res.status(400).json({ error: "Rekomendasi film kosong" });
   }
 
   if (!process.env.GEMINI_API_KEY) {
@@ -19,18 +19,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Prompt Gemini untuk poster film
     const prompt = `
-Berdasarkan aktivitas berikut:
-${trimmedActivities}
+Buatkan sebuah poster film fiktif berdasarkan rekomendasi berikut:
+${trimmedRecommendation}
 
-Bayangkan mahasiswa tersebut direpresentasikan sebagai seekor hewan lucu.
-Buat deskripsi visual satu karakter yang lucu, imut, dan menarik.
-Sertakan ekspresi wajah (rajin, malas, santai, lelah, fokus, dll)
-dan properti kecil (buku, HP, bantal, dll) sesuai aktivitas.
-Visual harus fokus pada satu karakter, tanpa teks.
+Ketentuan:
+- Poster hanya 1 gambar
+- Gaya sinematik, dramatis, dan estetik
+- Sesuai genre atau tema film
+- Fokus pada karakter utama atau tema visual
+- Tidak menampilkan logo brand resmi
+- Judul film boleh fiktif
+- Visual keren dan premium
+- Tanpa teks yang mengganggu
 `.trim();
 
-    // Request ke Gemini generative API
+    // Request ke Gemini generative content API
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -38,7 +43,7 @@ Visual harus fokus pada satu karakter, tanpa teks.
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [
-            { parts: [{ text: `Buat deskripsi visual poster karakter dari prompt berikut agar bisa diubah menjadi gambar: ${prompt}` }] }
+            { parts: [{ text: `Buat deskripsi visual poster film berdasarkan rekomendasi: ${prompt}` }] }
           ]
         })
       }
@@ -47,17 +52,17 @@ Visual harus fokus pada satu karakter, tanpa teks.
     const data = await response.json();
     if (!response.ok) {
       console.error("Gemini poster error:", data);
-      return res.status(response.status).json({ error: data.error?.message || "Gagal generate poster dari Gemini" });
+      return res.status(response.status).json({ error: data.error?.message || "Gagal generate poster film dari Gemini" });
     }
 
-    // Ambil text dari Gemini dan ubah ke base64 (frontend bisa render gambar dari text ini atau pakai library tambahan)
     const posterDescription = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!posterDescription) return res.status(500).json({ error: "Gemini tidak menghasilkan deskripsi poster" });
 
+    // Kembalikan sebagai base64 agar frontend bisa menampilkan
     return res.status(200).json({ image: Buffer.from(posterDescription).toString("base64") });
 
   } catch (error) {
-    console.error("Generate poster Gemini error:", error);
+    console.error("Generate poster film Gemini error:", error);
     return res.status(500).json({ error: "Gagal menghubungi Gemini API" });
   }
 }
